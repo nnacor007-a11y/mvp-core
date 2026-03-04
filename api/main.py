@@ -10,24 +10,27 @@ from datetime import date
 DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://core_user:core_pass@localhost:5433/core")
 
 ALLOWED_TYPES = {
-"capex","expansion","new_line","hiring","incident","quality_issue",
-"tender","patent","partnership","regulation","supplier_change","cyber_incident"
+    "capex","expansion","new_line","hiring","incident","quality_issue",
+    "tender","patent","partnership","regulation","supplier_change","cyber_incident"
 }
 
-app = FastAPI()
+app = FastAPI(title="MVP CORE API")
 
 def get_conn():
     return psycopg.connect(DATABASE_URL, row_factory=dict_row)
 
+
 class CompanyIn(BaseModel):
     name: str
     country: Optional[str] = None
+
 
 class PlantIn(BaseModel):
     name: str
     company_id: Optional[uuid.UUID] = None
     city: Optional[str] = None
     country: Optional[str] = None
+
 
 class SignalIn(BaseModel):
     plant_id: uuid.UUID
@@ -37,25 +40,69 @@ class SignalIn(BaseModel):
     source: Optional[str] = None
     confidence: int = Field(ge=0, le=100)
 
+
+@app.get("/")
+def root():
+    return {"service": "mvp-core-api", "status": "ok"}
+
+
 @app.post("/companies")
 def create_company(body: CompanyIn):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO companies (name, country) VALUES (%s,%s) RETURNING *",
+                """
+                INSERT INTO companies (name, country)
+                VALUES (%s,%s)
+                RETURNING id,name,country,created_at
+                """,
                 (body.name, body.country)
             )
             return cur.fetchone()
+
+
+@app.get("/companies")
+def list_companies():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id,name,country,created_at
+                FROM companies
+                ORDER BY created_at DESC
+                """
+            )
+            return cur.fetchall()
+
 
 @app.post("/plants")
 def create_plant(body: PlantIn):
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "INSERT INTO plants (name, company_id, city, country) VALUES (%s,%s,%s,%s) RETURNING *",
+                """
+                INSERT INTO plants (name, company_id, city, country)
+                VALUES (%s,%s,%s,%s)
+                RETURNING id,company_id,name,city,country,created_at
+                """,
                 (body.name, body.company_id, body.city, body.country)
             )
             return cur.fetchone()
+
+
+@app.get("/plants")
+def list_plants():
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id,company_id,name,city,country,created_at
+                FROM plants
+                ORDER BY created_at DESC
+                """
+            )
+            return cur.fetchall()
+
 
 @app.post("/signals")
 def create_signal(body: SignalIn):
@@ -69,11 +116,12 @@ def create_signal(body: SignalIn):
                 """
                 INSERT INTO signals (plant_id,type,date,summary,source,confidence)
                 VALUES (%s,%s,%s,%s,%s,%s)
-                RETURNING id,plant_id,type,date,summary,source,confidence
+                RETURNING id,plant_id,type,date,summary,source,confidence,created_at
                 """,
                 (body.plant_id, body.type, body.date, body.summary, body.source, body.confidence)
             )
             return cur.fetchone()
+
 
 @app.get("/plants/{plant_id}/timeline")
 def timeline(
@@ -107,10 +155,10 @@ def timeline(
     where_clause = " AND ".join(filters)
 
     sql = f"""
-    SELECT id,date,type,summary,source,confidence
-    FROM signals
-    WHERE {where_clause}
-    ORDER BY date DESC
+        SELECT id,date,type,summary,source,confidence
+        FROM signals
+        WHERE {where_clause}
+        ORDER BY date DESC
     """
 
     with get_conn() as conn:
