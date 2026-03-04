@@ -1,43 +1,57 @@
-﻿# MVP CORE – Plant Signals Timeline
+﻿# MVP CORE – Plant Signals Timeline (MVP)
 
 ## Requisitos
 - Docker Desktop
 - Python 3.11+
-- PowerShell
+- Windows PowerShell
 
-## 1. Levantar base de datos
+## 1) Levantar base de datos
+```powershell
 docker compose up -d
+docker ps
+```
 
-## 2. Aplicar migración
+## 2) Aplicar migración (PowerShell-friendly)
+```powershell
 Get-Content .\sql\001_init.sql | docker exec -i mvp_core_db psql -U core_user -d core
+```
 
-## 3. Cargar datos de ejemplo
+## 3) Cargar datos de ejemplo (seed)
+```powershell
 Get-Content .\sql\002_seed.sql | docker exec -i mvp_core_db psql -U core_user -d core
+```
 
-## 4. Levantar API
-cd api
-python -m venv .venv
+## 4) Levantar API
+```powershell
+Set-Location .\api
+if (!(Test-Path .venv)) { python -m venv .venv }
 .\.venv\Scripts\Activate.ps1
 pip install -r requirements.txt
 
 $env:DATABASE_URL = "postgresql://core_user:core_pass@localhost:5433/core"
-
 uvicorn main:app --host 127.0.0.1 --port 8000
+```
 
 ## API Docs
 http://127.0.0.1:8000/docs
 
-## Ejemplos
+## Ejemplos (PowerShell)
 
 ### Crear plant
-curl -Method POST http://127.0.0.1:8000/plants 
-  -Headers @{ "Content-Type" = "application/json" } 
-  -Body '{"name":"Example Plant","city":"Madrid","country":"ES"}'
+```powershell
+Invoke-RestMethod -Method POST http://127.0.0.1:8000/plants `
+  -ContentType "application/json" `
+  -Body '{ "name":"Example Plant", "company_id":null, "city":"Madrid", "country":"ES" }'
+```
 
 ### Crear signal
-curl -Method POST http://127.0.0.1:8000/signals 
-  -Headers @{ "Content-Type" = "application/json" } 
-  -Body '{"plant_id":"PLANT_ID","type":"capex","date":"2026-03-04","summary":"Example signal","confidence":80}'
+```powershell
+Invoke-RestMethod -Method POST http://127.0.0.1:8000/signals `
+  -ContentType "application/json" `
+  -Body '{ "plant_id":"PLANT_ID", "type":"capex", "date":"2026-03-04", "summary":"Example signal", "source":"test", "confidence":80 }'
+```
 
 ### Consultar timeline
-curl "http://127.0.0.1:8000/plants/PLANT_ID/timeline"
+```powershell
+Invoke-RestMethod "http://127.0.0.1:8000/plants/PLANT_ID/timeline?type=capex,hiring&min_confidence=70"
+```
